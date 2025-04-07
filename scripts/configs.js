@@ -1,5 +1,7 @@
+import { getHref, getOrigin } from './scripts.js';
+ 
 const ALLOWED_CONFIGS = ['prod', 'stage', 'dev'];
-
+ 
 /**
  * This function calculates the environment in which the site is running based on the URL.
  * It defaults to 'prod'. In non 'prod' environments, the value can be overwritten using
@@ -8,7 +10,8 @@ const ALLOWED_CONFIGS = ['prod', 'stage', 'dev'];
  * @returns {string} - environment identifier (dev, stage or prod'.
  */
 export const calcEnvironment = () => {
-  const { host, href } = window.location;
+  const href = getHref();
+  const host = getOrigin();
   let environment = 'prod';
   if (href.includes('.aem.page') || host.includes('staging')) {
     environment = 'stage';
@@ -16,7 +19,7 @@ export const calcEnvironment = () => {
   if (href.includes('localhost')) {
     environment = 'dev';
   }
-
+ 
   const environmentFromConfig = window.sessionStorage.getItem('environment');
   if (
     environmentFromConfig
@@ -25,34 +28,34 @@ export const calcEnvironment = () => {
   ) {
     return environmentFromConfig;
   }
-
+ 
   return environment;
 };
-
+ 
 function buildConfigURL(environment) {
   const env = environment || calcEnvironment();
   let fileName = 'configs.json';
   if (env !== 'prod') {
     fileName = `configs-${env}.json`;
   }
-  const configURL = new URL(`${window.location.origin}/${fileName}`);
+  const configURL = new URL(`${getOrigin()}/${fileName}`);
   return configURL;
 }
-
+ 
 const getConfigForEnvironment = async (environment) => {
   const env = environment || calcEnvironment();
-
+ 
   try {
     const configJSON = window.sessionStorage.getItem(`config:${env}`);
     if (!configJSON) {
       throw new Error('No config in session storage');
     }
-
+ 
     const parsedConfig = JSON.parse(configJSON);
     if (!parsedConfig[':expiry'] || parsedConfig[':expiry'] < Math.round(Date.now() / 1000)) {
       throw new Error('Config expired');
     }
-
+ 
     return parsedConfig;
   } catch (e) {
     let configJSON = await fetch(buildConfigURL(env));
@@ -65,7 +68,7 @@ const getConfigForEnvironment = async (environment) => {
     return configJSON;
   }
 };
-
+ 
 /**
  * This function retrieves a configuration value for a given environment.
  *
@@ -79,7 +82,7 @@ export const getConfigValue = async (configParam, environment) => {
   const configElements = config.data;
   return configElements.find((c) => c.key === configParam)?.value;
 };
-
+ 
 /**
  * Retrieves headers from config entries like commerce.headers.pdp.my-header, etc and
  * returns as object of all headers like { my-header: value, ... }
@@ -88,7 +91,7 @@ export const getHeaders = async (scope, environment) => {
   const env = environment || calcEnvironment();
   const config = await getConfigForEnvironment(env);
   const configElements = config.data.filter((el) => el?.key.includes(`headers.${scope}`));
-
+ 
   return configElements.reduce((obj, item) => {
     let { key } = item;
     if (key.includes(`commerce.headers.${scope}.`)) {
@@ -97,19 +100,19 @@ export const getHeaders = async (scope, environment) => {
     return { ...obj, [key]: item.value };
   }, {});
 };
-
+ 
 export const getCookie = (cookieName) => {
   const cookies = document.cookie.split(';');
   let foundValue;
-
+ 
   cookies.forEach((cookie) => {
     const [name, value] = cookie.trim().split('=');
     if (name === cookieName) {
       foundValue = decodeURIComponent(value);
     }
   });
-
+ 
   return foundValue;
 };
-
+ 
 export const checkIsAuthenticated = () => !!getCookie('auth_dropin_user_token') ?? false;
